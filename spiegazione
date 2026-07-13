@@ -1,0 +1,6 @@
+TABELLA role_mapping: serve a collegare i film (movie) alle persone (names) che ci hanno lavorato, specificando il loro ruolo (attore, attrice, ecc.).
+Senza questa tabella, non potresti mai sapere quali attori hanno recitato in un determinato film.
+- movie_id : chiave esterna che si collega all'id della tabella movie. Dice in quale film è avvenuta la prestazione. (id = id_movie) della tabella movie
+- name_id : chiave esterna che si collega all'id della tabella names. Dice chi è la persona che ha lavorato nel film. (id = name_id) della tabella names
+- category : ruolo specifico ricoperto in quel film. I valori tipici che troverai qui sono 'actor' (attore), 'actress' (attrice) o 'writer' (sceneggiatore).
+
