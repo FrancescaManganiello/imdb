@@ -4,3 +4,14 @@ Senza questa tabella, non potresti mai sapere quali attori hanno recitato in un 
 - name_id : chiave esterna che si collega all'id della tabella names. Dice chi è la persona che ha lavorato nel film. (id = name_id) della tabella names
 - category : ruolo specifico ricoperto in quel film. I valori tipici che troverai qui sono 'actor' (attore), 'actress' (attrice) o 'writer' (sceneggiatore).
 
+TABELLA genre: serve a dire di che tipo è un film (Azione, Drammatico, Commedia, ecc.). La regola d'oro da ricordare è: un film può avere più generi contemporaneamente.
+- movie_id : codice identificativo del film. È lo stesso identico id che c'è nella tabella movie. (id = id_movie) della tabella movie
+"gancio" per unire questa tabella a quella dei film.
+- genre : nome del genere in formato testo (es. 'Action', 'Comedy', 'Drama', 'Horror'). Per filtrare i film in base alla categoria che ti interessa.
+
+TABELLA director_mapping: funziona esattamente come role_mapping, ma ha un unico scopo specifico: collegare i film ai loro registi (in inglese, directors).
+tabella "ponte". Nel cinema, un regista può dirigere più film e un film può avere più di un regista. Per evitare confusioni, questa tabella registra semplicemente quali coppie "Film-Regista" esistono nel database.
+- movie_id : chiave esterna che si collega all'id della tabella movie. Indica il film in questione. (id = id_movie) della tabella movie
+- name_id : chiave esterna che si collega all'id della tabella names. Indica chi è il regista. (id = name_id) della tabella names
+
+TABELLA names:
