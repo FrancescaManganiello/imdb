@@ -1,0 +1,305 @@
+DAO: 
+from database.DB_connect import DBConnect
+from model.actor import Actor
+
+class DAO():
+
+    # PUNTO 1 ----------------------------------------------------------
+    # L’utente seleziona dal corrispondente menù a tendina un range di rating  (tabella Ratings).
+    @staticmethod
+    def getAllRatings():
+        conn = DBConnect.get_connection()
+
+        result = []
+        cursor = conn.cursor(dictionary=True)
+
+        query = """select distinct(r.avg_rating)
+                    from ratings r 
+                    order by r.avg_rating"""
+
+        cursor.execute(query)
+
+        for row in cursor:
+            result.append(row["avg_rating"])
+
+        cursor.close()
+        conn.close()
+        return result
+    # FINE PUNTO 1 ------------------------------------------------------
+
+    # PUNTO 2 ----------------------------------------------------------
+    # I vertici sono gli attori che hanno recitato nei film che
+    # hanno ricevuto una valutazione nel range definito dall’utente
+    @staticmethod
+    def getAllActorsByRange(rating1, rating2):
+        conn = DBConnect.get_connection()
+
+        result = []
+        cursor = conn.cursor(dictionary=True)
+
+        query = """select distinct rm.name_id  as ActorID,  n.name as Name, n.date_of_birth as birth_date
+                    from names n , ratings r , role_mapping rm , movie m 
+                    where r.avg_rating >= %s
+                    and r.avg_rating <= %s
+                    and m.id = rm.movie_id
+                    and m.id = r.movie_id 
+                    and n.id = rm.name_id 
+                    and n.date_of_birth  is not null"""
+
+        cursor.execute(query, (rating1, rating2,))
+
+        for row in cursor:
+            result.append(Actor(**row))
+
+        cursor.close()
+        conn.close()
+        return result
+
+    #  Esiste un arco tra due attori se hanno recitato almeno in uno stesso film.
+    #  Il peso è pari alla somma degli incassi dei film in comune.
+    @staticmethod
+    def getAllEdges(rating1, rating2):
+
+        conn = DBConnect.get_connection()
+
+        result = []
+        cursor = conn.cursor(dictionary=True)
+
+        query = """select rm1.name_id as Actor1, rm2.name_id as Actor2, sum( cast(replace(replace(m.worlwide_gross_income, '$', ''),',', '') as unsigned)) as Weight
+                    from movie m, role_mapping rm1, role_mapping rm2, ratings r, names n1, names n2
+                    where m.id = rm1.movie_id
+                    and m.id = rm2.movie_id
+                    and m.id = r.movie_id
+                    and rm1.name_id = n1.id
+                    and rm2.name_id = n2.id
+                    and n1.date_of_birth IS NOT NULL
+                    and n2.date_of_birth IS NOT NULL
+                    and rm1.name_id < rm2.name_id
+                    and r.avg_rating >= %s
+                    and r.avg_rating <= %s
+                    and m.worlwide_gross_income is not null
+                    and m.worlwide_gross_income like '$%'
+                    group by rm1.name_id, rm2.name_id"""
+
+        cursor.execute(query, (rating1, rating2,))
+
+        for row in cursor:
+            result.append((row["Actor1"], row["Actor2"], row["Weight"]))
+
+        cursor.close()
+---------------------------------------------------------------------------------------------------------------
+MODEL:
+
+import networkx as nx
+from database.DAO import DAO
+
+class Model:
+    def __init__(self):
+        self._graph = nx.Graph()      # un grafo non orientato ma pesato
+        self._idMap = {}
+
+    # PUNTO 1 ----------------------------------------------------------
+    # Richiama il metodo del DAO
+    def getRatings(self):
+        return DAO.getAllRatings()
+    # FINE PUNTO 1 ------------------------------------------------------
+
+    # PUNTO 2 ----------------------------------------------------------
+    def buildGraph(self, rating1, rating2):
+        self._graph.clear()
+        self._actors = DAO.getAllActorsByRange(rating1, rating2)
+        for a in self._actors:
+            self._idMap[a.ActorID] = a
+
+        self._graph.add_nodes_from(self._actors)
+
+        self._edges = DAO.getAllEdges(rating1, rating2)
+        for e1, e2, w in self._edges:
+            self._graph.add_edge(self._idMap[e1], self._idMap[e2], weight=w)
+            # Il passaggio attraverso self._idMap serve tradurre gli ID del database nei corrispondenti oggetti Nodo
+            # creati all'interno del grafo in Python
+
+    # FINE PUNTO 2 -----------------------------------------------------
+
+    # PUNTO 3 ----------------------------------------------------------
+    #  Si visualizzino i 5 archi con peso maggiore.
+    def get_top_5_archi(self):
+        lista_archi = list(self._graph.edges(data=True))
+        lista_archi.sort(key=lambda x: x[2]["weight"], reverse=True)
+
+        return lista_archi[0:5]
+
+    # Si visualizzi il numero delle componenti connesse e la componente connessa maggiore.
+    def getConnectedComponents(self):
+        componenti = list(nx.connected_components(self._graph))
+        componente_max = max(componenti, key = len)
+
+        return componenti, componente_max
+    # FINE PUNTO 3 -----------------------------------------------------
+
+
+    def getActors(self):
+        return self._graph.nodes()
+
+    def getNumNodes(self):
+        return len(self._graph.nodes())
+
+    def getNumEdges(self):
+        return len(self._graph.edges())
+-------------------------------------------------------------------------------
+CONTROLLER:
+
+import flet as ft
+
+class Controller:
+    def __init__(self, view, model):
+        # the view, with the graphical elements of the UI
+        self._view = view
+        # the model, which implements the logic of the program and holds the data
+        self._model = model
+
+    # PUNTO 1 ----------------------------------------------------------
+    # Metodo per riempire il dropdown
+    def fillDDsRating(self):
+        ratings = self._model.getRatings()
+
+        ratingsDD = list(map(lambda x: ft.dropdown.Option(x), ratings))
+        self._view._ddrating1.options = ratingsDD
+        self._view._ddrating2.options = ratingsDD
+        self._view.update_page()
+
+        """
+        ratings = self._model.getRatings()
+        for voto in ratings:
+            self._view._ddrating1.options.append(ft.dropdown.Option(voto))
+            self._view._ddrating2.options.append(ft.dropdown.Option(voto))
+        self._view.update_page()
+
+        """
+    # FINE PUNTO 1 ------------------------------------------------------
+
+    # PUNTO 2,3 ----------------------------------------------------------
+    def handleCreaGrafo(self, e):
+
+        self._model.buildGraph(self._view._ddrating1.value, self._view._ddrating2.value)
+        n = self._model.getNumNodes()
+        m = self._model.getNumEdges()
+        self._view.txt_result.controls.clear()
+        self._view.txt_result.controls.append(ft.Text(f"Grafo correttamente creato:"))
+        self._view.txt_result.controls.append(ft.Text(f"Numero di nodi: {n}"))
+        self._view.txt_result.controls.append(ft.Text(f"Numero di archi: {m}"))
+
+        self._view.txt_result.controls.append(ft.Text("Top 5 archi: "))
+        top_5 = self._model.get_top_5_archi()
+        for u, v, data in top_5:
+            self._view.txt_result.controls.append(ft.Text(f"{u.Name} -> {v.Name} | Peso: {data['weight']}"))
+
+        componenti, componente_max = self._model.getConnectedComponents()
+        self._view.txt_result.controls.append(ft.Text(f"Il grafo ha {len(componenti)} componenti connesse"))
+        self._view.txt_result.controls.append(ft.Text(f"La più grande componente connessa è lunga {len(componente_max)}:"))
+        for c in componente_max:
+            self._view.txt_result.controls.append(ft.Text(f"{c.Name}"))
+
+        self._view.update_page()
+
+    # FINE PUNTO 2,3 ------------------------------------------------------
+
+
+    # PARTE 2 NON FATTA
+    def handleCammino(self, e):
+
+        bestPath = self._model.getBestPath()
+        self._view.txt_result.controls.append(ft.Text(f"Cammino massimo trovato ({len(bestPath)} nodi):"))
+
+        for a in bestPath:
+            self._view.txt_result.controls.append(ft.Text(a.Name))
+
+        self._view.update_page()
+-------------------------------------------------------------------------------------------------------------------
+VIEW:
+import flet as ft
+
+class View(ft.UserControl):
+    def __init__(self, page: ft.Page):
+        super().__init__()
+        # page stuff
+        self._page = page
+        self._page.title = "Lab12-Simulazione esame"
+        self._page.horizontal_alignment = 'CENTER'
+        self._page.theme_mode = ft.ThemeMode.LIGHT
+        # controller (it is not initialized. Must be initialized in the main, after the controller is created)
+        self._controller = None
+        # graphical elements
+        self._title = None
+        self.txt_name = None
+        self.btn_hello = None
+        self.txt_result = None
+        self.txt_container = None
+
+    def load_interface(self):
+        # title
+        self._title = ft.Text("TdP-Simulazione esame imdb", color="blue", size=24)
+        self._page.controls.append(self._title)
+
+
+        self._ddrating1 = ft.Dropdown(label="Voto", hint_text="Rating")
+        self._ddrating2 = ft.Dropdown(label="Voto", hint_text="Rating")
+        self._controller.fillDDsRating()
+        self._btnCreaGrafo = ft.ElevatedButton(text="Crea Grafo", on_click=self._controller.handleCreaGrafo)
+
+        row1 = ft.Row([self._ddrating1,self._ddrating2, self._btnCreaGrafo], alignment=ft.MainAxisAlignment.CENTER,
+                      vertical_alignment=ft.CrossAxisAlignment.END)
+
+        self._page.controls.append(row1)
+
+        self._btnCammino = ft.ElevatedButton(text="Trova Cammino", on_click=self._controller.handleCammino)
+
+        row2 = ft.Row([self._btnCammino],
+                      alignment=ft.MainAxisAlignment.CENTER)
+        self._page.controls.append(row2)
+
+        # List View where the reply is printed
+        self.txt_result = ft.ListView(expand=1, spacing=10, padding=20, auto_scroll=True)
+        self._page.controls.append(self.txt_result)
+        self._page.update()
+
+    @property
+    def controller(self):
+        return self._controller
+
+    @controller.setter
+    def controller(self, controller):
+        self._controller = controller
+
+    def set_controller(self, controller):
+        self._controller = controller
+
+    def create_alert(self, message):
+        dlg = ft.AlertDialog(title=ft.Text(message))
+        self._page.dialog = dlg
+        dlg.open = True
+        self._page.update()
+
+    def update_page(self):
+        self._page.update()
+
+        return result
+----------------------------------------------------------------------------------------------------
+ALTRE CLASSI:
+
+from dataclasses import dataclass
+from datetime import date
+
+
+@dataclass
+class Actor:
+    ActorID: str
+    Name: str
+    birth_date: date
+
+    def __hash__(self):
+        return hash(self. ActorID)
+
+    def __str__(self):
+        return f"{self.Name}"
+
