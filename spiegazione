@@ -44,3 +44,55 @@ Fa da gancio per unire i voti ai dettagli del film.
 È fondamentale per capire la popolarità. Un film può avere un avg_rating di 9.0, ma se ha solo 3 voti totali, non è davvero un film famoso.
 - median_rating : voto mediano (il valore centrale di tutti i voti). È un altro dato statistico sulla valutazione.
 
+
+
+A) Query per i Vertici (Trovare i Film di un Paese + Voti Totali)
+Mappa sui dati IMDb: Trova i film di un paese specifico (es. 'Italy') e calcola la somma totale dei voti ricevuti.
+
+SELECT movie.id, SUM(ratings.total_votes) AS fatturato_voti
+FROM movie, ratings
+WHERE movie.id = ratings.movie_id
+  AND movie.country = 'Italy'
+GROUP BY movie.id;
+
+B) Query per gli Archi (Coppie di Film che condividono lo stesso Regista)
+Mappa sui dati IMDb: Trova le coppie di film che hanno almeno un regista in comune.
+
+SELECT d1.movie_id AS id_film_1, d2.movie_id AS id_film_2
+FROM director_mapping d1, director_mapping d2
+WHERE d1.name_id = d2.name_id
+  AND d1.movie_id < d2.movie_id;
+----------------------------------------------------------------------------------------------------------------------------
+A) Query per i Vertici (Trovare i Film che hanno almeno un Genere)
+Mappa sui dati IMDb: Seleziona i film presenti nella tabella movie che appaiono nella tabella genre.
+
+SELECT DISTINCT movie.id, movie.title
+FROM movie, genre
+WHERE movie.id = genre.movie_id;
+
+B) Query per gli Archi (Coppie di Film con lo stesso Genere)
+Mappa sui dati IMDb: Trova le coppie di film distinti che appartengono allo stesso genere cinematografico.
+
+SELECT g1.movie_id AS id_film_1, g2.movie_id AS id_film_2
+FROM genre g1, genre g2
+WHERE g1.genre = g2.genre
+AND g1.movie_id < g2.movie_id;
+----------------------------------------------------------------------------------------------------------------------------
+A) Query per i Vertici (Trovare gli Attori che hanno fatto almeno un film)
+Mappa sui dati IMDb: Trova tutte le persone della tabella names che hanno lavorato come attori nella tabella role_mapping.
+
+SELECT DISTINCT names.id, names.name
+FROM names, role_mapping
+WHERE names.id = role_mapping.name_id
+AND role_mapping.category = 'actor';
+
+B) Query per gli Archi Pesati (Coppie di Attori che hanno recitato insieme + Peso)
+Mappa sui dati IMDb: Trova le coppie di attori distinti che hanno lavorato nello stesso film. Il peso dell'arco è il numero di film fatti insieme.
+
+SELECT r1.name_id AS id_attore_1, r2.name_id AS id_attore_2, COUNT(*) AS peso_arco
+FROM role_mapping r1, role_mapping r2
+WHERE r1.movie_id = r2.movie_id
+  AND r1.category = 'actor'
+  AND r2.category = 'actor'
+  AND r1.name_id < r2.name_id
+GROUP BY r1.name_id, r2.name_id;
