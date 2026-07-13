@@ -1,5 +1,13 @@
-TABELLA movie:
-
+TABELLA movie: punto di partenza (o di arrivo) di quasi tutte le strade del database.
+- id : codice unico del film (es. tt0111161). Nelle query lo userai quasi sempre nel JOIN. (id = movie_id) nella classe role_mapping, genre, director_mapping, ratings)
+- title: Il titolo del film. Lo usi nel SELECT per mostrarlo o nel WHERE per cercarlo.
+- year: anno di uscita (numero intero). Comodissimo per filtri numerici.
+- date_published: data esatta. Utile se devi ordinare i film giorno per giorno.
+- duration: durata in minuti.
+- country: paese di produzione.
+- worldwide_gross_income: incasso globale. Ricorda che essendo memorizzato come testo (ABC), se vuoi ordinare i film dal più redditizio al meno redditizio dovrai stare attento a come il database gestisce i simboli (tipo il $ davanti al numero).
+- languages: lingue del film.
+- production_company: casa di produzione.
 
 TABELLA role_mapping: serve a collegare i film (movie) alle persone (names) che ci hanno lavorato, specificando il loro ruolo (attore, attrice, ecc.).
 Senza questa tabella, non potresti mai sapere quali attori hanno recitato in un determinato film.
@@ -26,4 +34,13 @@ Lo ritrovi nelle tabelle "ponte" per fare i collegamenti. (role_mapping e direct
 - height : altezza della persona espressa in centimetri
 - date_of_birth : data di nascita esatta.
 - known_for_movies : lista di codici dei film più famosi per cui questa persona è conosciuta.
+
+TABELLA ratings: ti permette di fare classifiche e cercare i film più belli o più popolari. Questa tabella contiene i voti che gli utenti di IMDb hanno dato ai film. 
+A differenza delle tabelle ponte (role_mapping o director_mapping), ogni film qui ha una sola riga associata, perché contiene già i dati calcolati e totali per quel film.
+- movie_id : chiave esterna. È il solito codice id del film che abbiamo visto in giro per tutto il database. (id)
+Fa da gancio per unire i voti ai dettagli del film.
+- avg_rating :voto medio del film (da 1.0 a 10.0).
+- total_votes : numero totale di persone che hanno votato quel film su IMDb. 
+È fondamentale per capire la popolarità. Un film può avere un avg_rating di 9.0, ma se ha solo 3 voti totali, non è davvero un film famoso.
+- median_rating : voto mediano (il valore centrale di tutti i voti). È un altro dato statistico sulla valutazione.
 
